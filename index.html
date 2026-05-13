@@ -9,6 +9,8 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" defer></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js" defer></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" async></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js" defer></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js" defer></script>
 <style>
 :root {
   --ink:#1a2d5a;
@@ -746,6 +748,44 @@ body.dark .toast-msg{background:#1a2d5a;}
 // ═══ KEYS ═══
 const K={CL:'psa_clients',AP:'psa_appts',AUTH:'psa_auth',SBU:'psa_sb_url',SBK:'psa_sb_key',LG:'psa_logged'};
 
+// ═══ FIREBASE ═══
+const FB_CFG={apiKey:"AIzaSyBctM2iT1ZQNdULg_xkApLgovOyiDE61uw",authDomain:"psa-agenda.firebaseapp.com",projectId:"psa-agenda",storageBucket:"psa-agenda.firebasestorage.app",messagingSenderId:"153367062291",appId:"1:153367062291:web:342853cb82804becf75ce6"};
+const FIRM='PSA';
+let fbDb=null,fbListener=null;
+
+function initFirebase(){
+  try{
+    if(typeof firebase==='undefined'){setTimeout(initFirebase,500);return;}
+    if(!firebase.apps.length)firebase.initializeApp(FB_CFG);
+    fbDb=firebase.firestore();
+    // Citim datele la start
+    fbDb.collection('firms').doc(FIRM).get().then(doc=>{
+      if(doc.exists){
+        const d=doc.data();
+        if(d[K.CL]){try{const nc=JSON.parse(d[K.CL]);if(nc.length){clients=nc;localStorage.setItem(K.CL,d[K.CL]);}}catch(e){}}
+        if(d[K.AP]){try{const na=JSON.parse(d[K.AP]);if(na.length){appointments=na;localStorage.setItem(K.AP,d[K.AP]);}}catch(e){}}
+        try{render();}catch(e){}
+      }
+    }).catch(e=>console.warn('FB read:',e));
+    // Listener real-time
+    if(fbListener)fbListener();
+    fbListener=fbDb.collection('firms').doc(FIRM).onSnapshot(doc=>{
+      if(!doc.exists)return;
+      const d=doc.data();
+      let changed=false;
+      if(d[K.CL]){try{const nc=JSON.parse(d[K.CL]);if(JSON.stringify(nc)!==JSON.stringify(clients)){clients=nc;localStorage.setItem(K.CL,d[K.CL]);changed=true;}}catch(e){}}
+      if(d[K.AP]){try{const na=JSON.parse(d[K.AP]);if(JSON.stringify(na)!==JSON.stringify(appointments)){appointments=na;localStorage.setItem(K.AP,d[K.AP]);changed=true;}}catch(e){}}
+      if(changed)try{render();}catch(e){}
+    },e=>console.warn('FB listen:',e));
+    setBadge(2);
+  }catch(e){console.warn('Firebase init:',e);}
+}
+
+function fbSave(k,d){
+  if(!fbDb)return;
+  try{fbDb.collection('firms').doc(FIRM).set({[k]:JSON.stringify(d),updatedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});}catch(e){console.warn('FB write:',e);}
+}
+
 // ═══ AUTH ═══
 function getAuth(){try{return JSON.parse(localStorage.getItem(K.AUTH))||{pass:'2011'};}catch{return{pass:'2011'};}}
 const USERS=['dragos','mirela'];
@@ -817,7 +857,8 @@ function initSb(){
 }
 function setBadge(s){
   const b=document.getElementById('syncBadge');if(!b)return;
-  if(s===1){b.className='sync-badge sync-ok';b.textContent='Supabase';}
+  if(s===2){b.className='sync-badge sync-ok';b.textContent='☁️ Firebase';}
+  else if(s===1){b.className='sync-badge sync-ok';b.textContent='Supabase';}
   else if(s===-1){b.className='sync-badge sync-err';b.textContent='Eroare';}
   else{b.className='sync-badge sync-off';b.textContent='Local';}
 }
@@ -867,7 +908,7 @@ function renderSettings(){
 
 // ═══ DATA ═══
 function load(k){try{return JSON.parse(localStorage.getItem(k))||[];}catch{return[];}}
-function save(k,d){localStorage.setItem(k,JSON.stringify(d));}
+function save(k,d){localStorage.setItem(k,JSON.stringify(d));if(k===K.CL||k===K.AP)fbSave(k,d);}
 let clients=load(K.CL),appointments=load(K.AP);
 if(!clients.length){
   const n=new Date().toISOString();
@@ -1188,6 +1229,7 @@ function launchApp(){
   // defer render să lase DOM-ul să se actualizeze
   setTimeout(()=>{
     try{initSb();}catch(e){}
+    try{initFirebase();}catch(e){}
     try{render();}catch(e){console.error('render err:',e);}
     try{
       if(localStorage.getItem('psa_notif')==='1'&&Notification.permission==='granted'){
