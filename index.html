@@ -736,6 +736,7 @@ body.dark .toast-msg{background:#1a2d5a;}
   <div class="modal">
     <div id="clientDetailContent"></div>
     <div class="modal-actions">
+      <button class="btn-danger" onclick="delClient(detailClientId)" style="margin-right:auto">🗑 Șterge client</button>
       <button class="btn-secondary" onclick="closeModal('clientDetailModal')">Închide</button>
       <button class="btn-primary" onclick="newApptForClient()">＋ Programare nouă</button>
     </div>
@@ -921,8 +922,8 @@ if(!clients.length){
   ];save(K.CL,clients);
 }
 if(!appointments.length){
-  const t=new Date().toISOString().split('T')[0];
-  const tm=new Date();tm.setDate(tm.getDate()+1);const ts=tm.toISOString().split('T')[0];
+  const t=toLocalDateStr(new Date());
+  const tm=new Date();tm.setDate(tm.getDate()+1);const ts=toLocalDateStr(tm);
   appointments=[
     {id:'a1',clientId:'c1',date:t,time:'09:00',duration:60,type:'recovery',notes:'Analiza dosarului, strategie recuperare',status:'confirmed'},
     {id:'a2',clientId:'c3',date:t,time:'11:00',duration:60,type:'recovery',notes:'Discuție ofertă servicii juridice',status:'confirmed'},
@@ -1214,6 +1215,7 @@ function clearAll(){
 // ═══ STATE ═══
 let curView='calendar',wkStart=getWkStart(new Date()),mcDate=new Date(),editId=null,detailClientId=null;
 function getWkStart(d){const dt=new Date(d);const day=dt.getDay();dt.setDate(dt.getDate()+(day===0?-6:1-day));dt.setHours(0,0,0,0);return dt;}
+function toLocalDateStr(d){var m=d.getMonth()+1,dd=d.getDate();return d.getFullYear()+'-'+(m<10?'0':'')+m+'-'+(dd<10?'0':'')+dd;}
 
 // ═══ LAUNCH ═══
 function launchApp(){
@@ -1277,7 +1279,7 @@ function renderMC(){
     const el=document.createElement('div');el.className='mcd';el.textContent=d;
     const dt=new Date(y,m,d);
     if(dt.getTime()===today.getTime())el.classList.add('today');
-    if(aDates.includes(dt.toISOString().split('T')[0]))el.classList.add('has-event');
+    if(aDates.includes(toLocalDateStr(dt)))el.classList.add('has-event');
     el.onclick=()=>{wkStart=getWkStart(dt);if(curView!=='calendar')switchView('calendar');else renderWkGrid();};
     g.appendChild(el);
   }
@@ -1307,7 +1309,7 @@ function renderWkGrid(){
     const tl=document.createElement('div');tl.className='time-lbl';tl.textContent=h+':00';g.appendChild(tl);
     days.forEach(d=>{
       const cell=document.createElement('div');cell.className='time-cell';
-      const ds=d.toISOString().split('T')[0];
+      const ds=toLocalDateStr(d);
       appointments.filter(a=>a.date===ds&&parseInt(a.time.split(':')[0])===h).forEach(a=>{
         const c=clients.find(cl=>cl.id===a.clientId);
         const ev=document.createElement('div');ev.className='cal-ev ev-'+(a.clientId==='own'?'other':a.type);
@@ -1449,7 +1451,7 @@ function renderStats(){
 
 // ── RIGHT PANEL ──
 function renderRP(){
-  const today=new Date().toISOString().split('T')[0];
+  const today=toLocalDateStr(new Date());
   document.getElementById('todayLbl').textContent=new Date().toLocaleDateString('ro-RO',{day:'numeric',month:'long'});
   const ta=appointments.filter(a=>a.date===today&&a.status!=='cancelled').sort((a,b)=>a.time.localeCompare(b.time));
   const tl=document.getElementById('todayList');
@@ -1500,7 +1502,7 @@ function openApptModal(id,date,time,clientId){
   }else{
     setApptMode(clientId?'client':'client');
     document.getElementById('apptTitle').value='';
-    document.getElementById('apptDate').value=date||new Date().toISOString().split('T')[0];
+    document.getElementById('apptDate').value=date||toLocalDateStr(new Date());
     document.getElementById('apptTime').value=time||'09:00';
     document.getElementById('apptDur').value='60';
     document.getElementById('apptType').value='civil';
@@ -1536,6 +1538,18 @@ function delAppt(id){
   appointments=appointments.filter(a=>a.id!==id);save(K.AP,appointments);
   if(sb){sb.from('psa_appointments').delete().eq('id',id).then(()=>{});}
   toast('Programare ștearsă');render();
+}
+
+function delClient(id){
+  if(!confirm('Ștergi clientul și toate programările lui?'))return;
+  clients=clients.filter(c=>c.id!==id);save(K.CL,clients);
+  const apptIds=appointments.filter(a=>a.clientId===id).map(a=>a.id);
+  appointments=appointments.filter(a=>a.clientId!==id);save(K.AP,appointments);
+  if(sb){
+    sb.from('psa_clients').delete().eq('id',id).then(()=>{});
+    apptIds.forEach(aid=>sb.from('psa_appointments').delete().eq('id',aid).then(()=>{}));
+  }
+  closeModal('clientDetailModal');toast('Client șters');render();
 }
 
 function openClientModal(){
@@ -1882,7 +1896,7 @@ function getCurrentUserEmail(){
 
 // ═══ AGENDA ZILEI PE EMAIL ═══
 function sendAgendaEmail(){
-  const today=new Date().toISOString().split('T')[0];
+  const today=toLocalDateStr(new Date());
   const todayAppts=appointments.filter(a=>a.date===today&&a.status!=='cancelled').sort((a,b)=>a.time.localeCompare(b.time));
   const todayFmt=new Date().toLocaleDateString('ro-RO',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
   const toEmail=getCurrentUserEmail();
