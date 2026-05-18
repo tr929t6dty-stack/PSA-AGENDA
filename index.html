@@ -11,6 +11,8 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" async></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js" defer></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js" defer></script>
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+
 <style>
 :root {
   --ink:#1a2d5a;
@@ -747,6 +749,12 @@ body.dark .toast-msg{background:#1a2d5a;}
 
 <script>
 // ═══ KEYS ═══
+// ═══ EMAILJS CONFIG ═══
+emailjs.init('7fJGpccqCowAh_5eM');
+const EMAILJS_SERVICE='YOUR_SERVICE_ID'; // Înlocuiește cu Service ID după conectare Outlook în EmailJS
+const EMAILJS_TPL_CLIENT='hu2nf5g';
+const EMAILJS_TPL_AGENDA='9zqpltc';
+
 const K={CL:'psa_clients',AP:'psa_appts',AUTH:'psa_auth',SBU:'psa_sb_url',SBK:'psa_sb_key',LG:'psa_logged'};
 
 // ═══ FIREBASE ═══
@@ -1832,26 +1840,32 @@ function emailClient(apptId){
   const a=appointments.find(x=>x.id===apptId);
   if(!a)return;
   const c=clients.find(cl=>cl.id===a.clientId);
-  if(!c||!c.email){toast('Clientul nu are email înregistrat.',1);return;}
+  const defaultEmail=(c&&c.email)?c.email:'';
+  // Popup confirmare / editare email
+  const toEmail=prompt('Trimite confirmare la email:\n(Modifică dacă e necesar)',defaultEmail);
+  if(toEmail===null)return;
+  const email=toEmail.trim();
+  if(!email){toast('Email invalid.',1);return;}
   const data=new Date(a.date+'T00:00').toLocaleDateString('ro-RO',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
-  const subj=encodeURIComponent(`Confirmare întâlnire — Popescu și Asociații — ${a.date}`);
-  const body=encodeURIComponent(
-`Stimate(ă) ${c.name},
-
-Vă confirmăm programarea la cabinetul Popescu și Asociații:
-
-  📅 Data:    ${data}
-  🕐 Ora:     ${a.time}
-  ⏱ Durată:  ${a.duration} minute
-  📋 Domeniu: ${TMAP[a.type]}
-${a.notes?`  📝 Notițe:  ${a.notes}\n`:''}
-Vă rugăm să confirmați prezența sau să ne contactați în cazul în care doriți să reprogramați.
-
-Cu stimă,
-Cabinet Avocatură Popescu și Asociații`
-  );
-  window.open(`mailto:${c.email}?subject=${subj}&body=${body}`,'_blank');
-  toast(`Email deschis pentru ${c.name} ✓`,0,1);
+  const note=a.notes?`<p style="margin:20px 0;padding:12px 16px;background:#f9f5ed;border-left:3px solid #8b6914;font-style:italic;">${a.notes}</p>`:'';
+  emailjs.send(EMAILJS_SERVICE,EMAILJS_TPL_CLIENT,{
+    email_destinatar:email,
+    nume_client:c?c.name:'Client',
+    data:data,
+    ora:a.time,
+    durata:String(a.duration||60),
+    domeniu:TMAP[a.type]||a.type,
+    note:note
+  }).then(()=>{
+    toast(`✉️ Email trimis la ${email} ✓`,0,1);
+  }).catch(err=>{
+    console.error('EmailJS:',err);
+    // Fallback la mailto dacă EmailJS nu e configurat
+    const subj=encodeURIComponent(`Confirmare întâlnire — Societatea Civilă de Avocați Popescu și Asociații — ${a.date}`);
+    const body=encodeURIComponent(`Stimate(ă) ${c?c.name:'Client'},\n\nVă confirmăm programarea la Societatea Civilă de Avocați Popescu și Asociații:\n\n📅 Data: ${data}\n🕐 Ora: ${a.time}\n⏱ Durată: ${a.duration||60} minute\n📋 Domeniu: ${TMAP[a.type]||a.type}${a.notes?'\n📝 Notițe: '+a.notes:''}\n\nCu stimă,\nSocietatea Civilă de Avocați Popescu și Asociații`);
+    window.open(`mailto:${email}?subject=${subj}&body=${body}`,'_blank');
+    toast(`✉️ Email deschis pentru ${email}`,0,1);
+  });
 }
 
 // ═══ WHATSAPP CLIENT ═══
@@ -1899,27 +1913,47 @@ function sendAgendaEmail(){
   const today=toLocalDateStr(new Date());
   const todayAppts=appointments.filter(a=>a.date===today&&a.status!=='cancelled').sort((a,b)=>a.time.localeCompare(b.time));
   const todayFmt=new Date().toLocaleDateString('ro-RO',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
-  const toEmail=getCurrentUserEmail();
-  const subj=encodeURIComponent(`⚖ Agenda PSA — ${todayFmt}`);
-  let bodyLines=[`Agenda ta pentru ${todayFmt}:\n`];
+  // Construiește HTML-ul listei
+  let listaHTML='';
   if(!todayAppts.length){
-    bodyLines.push('Nicio programare astăzi.\n');
+    listaHTML='<p style="font-family:\'Times New Roman\',Times,serif;color:#777;font-style:italic;">Nicio programare astăzi.</p>';
   } else {
+    listaHTML='<table style="border-collapse:collapse;width:100%;font-family:\'Times New Roman\',Times,serif;">';
     todayAppts.forEach((a,i)=>{
       const name=apptDisplayName(a);
-      bodyLines.push(`${i+1}. ${a.time} — ${name} (${TMAP[a.type]}, ${a.duration} min) — ${SMAP[a.status]}${a.notes?'\n   Notițe: '+a.notes:''}`);
+      const bg=i%2===0?'#f9f9f9':'#ffffff';
+      listaHTML+=`<tr style="background:${bg};"><td style="padding:10px 12px;font-weight:bold;color:#8b6914;width:60px;">${a.time}</td><td style="padding:10px 12px;">${name}</td><td style="padding:10px 12px;color:#555;font-size:13px;">${TMAP[a.type]||a.type}</td><td style="padding:10px 12px;color:#777;font-size:13px;">${a.duration} min</td></tr>`;
     });
+    listaHTML+='</table>';
   }
-  const now=new Date(),soon=new Date(now.getTime()+48*3600000);
-  const upcoming=appointments.filter(a=>{const dt=new Date(a.date+'T'+a.time);return dt>now&&dt<=soon&&a.status!=='cancelled'&&a.date!==today;});
-  if(upcoming.length){
-    bodyLines.push(`\nÎntâlniri în următoarele 48h:`);
-    upcoming.forEach(a=>bodyLines.push(`• ${a.date} ${a.time} — ${apptDisplayName(a)} (${TMAP[a.type]})`));
+  const emails=getEmails();
+  const recipients=[emails.dragos,emails.mirela].filter(Boolean);
+  if(!recipients.length){toast('Nu sunt adrese de email configurate.',1);return;}
+  let sent=0,errors=0;
+  function tryFallback(){
+    // Fallback mailto dacă EmailJS nu e configurat
+    const toEmail=getCurrentUserEmail();
+    const subj=encodeURIComponent(`⚖ Agenda PSA — ${todayFmt}`);
+    let lines=[`Agenda pentru ${todayFmt}:\n`];
+    if(!todayAppts.length){lines.push('Nicio programare astăzi.');}
+    else{todayAppts.forEach((a,i)=>{lines.push(`${i+1}. ${a.time} — ${apptDisplayName(a)} (${TMAP[a.type]}, ${a.duration} min)${a.notes?' — '+a.notes:''}`);});}
+    window.open(`mailto:${toEmail}?subject=${subj}&body=${encodeURIComponent(lines.join('\n'))}` ,'_blank');
+    toast(`📬 Agenda deschisă → ${toEmail}`,0,1);
   }
-  bodyLines.push('\n— PSA Agendă, Popescu și Asociații');
-  const body=encodeURIComponent(bodyLines.join('\n'));
-  window.open(`mailto:${toEmail}?subject=${subj}&body=${body}`,'_blank');
-  toast(`Agenda deschisă → ${toEmail||'email'}`,0,1);
+  recipients.forEach(email=>{
+    emailjs.send(EMAILJS_SERVICE,EMAILJS_TPL_AGENDA,{
+      email_destinatar:email,
+      data:todayFmt,
+      lista_programari:listaHTML
+    }).then(()=>{
+      sent++;
+      if(sent+errors===recipients.length) toast(`📬 Agenda trimisă (${sent} destinatar${sent>1?'i':''}) ✓`,0,1);
+    }).catch(err=>{
+      console.error('EmailJS agenda:',err);
+      errors++;
+      if(errors===1) tryFallback();
+    });
+  });
 }
 
 // ═══ EXPORT ICS (iOS / Mac / Outlook) ═══
