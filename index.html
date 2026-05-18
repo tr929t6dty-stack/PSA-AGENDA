@@ -1247,7 +1247,41 @@ function launchApp(){
         setTimeout(()=>enableNotifications(),800);
       }
     }catch(e){}
+    // Rezumat zilnic la deschidere
+    try{setTimeout(()=>dailySummaryNotif(),1500);}catch(e){}
   },80);
+}
+
+// ═══ REZUMAT ZILNIC (notificare browser la deschidere) ═══
+function dailySummaryNotif(){
+  if(!('Notification' in window)||Notification.permission!=='granted')return;
+  const today=toLocalDateStr(new Date());
+  const lastShown=localStorage.getItem('psa_daily_notif');
+  if(lastShown===today)return; // deja afișat azi
+  const d1=new Date();d1.setDate(d1.getDate()+1);
+  const d2=new Date();d2.setDate(d2.getDate()+2);
+  const d3=new Date();d3.setDate(d3.getDate()+3);
+  const t1=toLocalDateStr(d1),t2=toLocalDateStr(d2),t3=toLocalDateStr(d3);
+  const active=appointments.filter(a=>a.status!=='cancelled');
+  const azi=active.filter(a=>a.date===today);
+  const maine=active.filter(a=>a.date===t1);
+  const p2=active.filter(a=>a.date===t2);
+  const p3=active.filter(a=>a.date===t3);
+  const lines=[];
+  if(azi.length)lines.push(`Azi: ${azi.length} programare${azi.length>1?'i':''}`);
+  if(maine.length)lines.push(`Mâine: ${maine.length} programare${maine.length>1?'i':''}`);
+  if(p2.length)lines.push(`Poimâine: ${p2.length} programare${p2.length>1?'i':''}`);
+  if(p3.length)lines.push(`În 3 zile: ${p3.length} programare${p3.length>1?'i':''}`);
+  if(!lines.length)return;
+  const n=new Notification('⚖ PSA Agenda — Programări viitoare',{
+    body:lines.join('
+'),
+    icon:'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="8" fill="%231a2d5a"/><text y="22" x="6" font-size="20">⚖</text></svg>',
+    tag:'psa-daily-summary',
+    requireInteraction:false
+  });
+  n.onclick=()=>{window.focus();switchView('calendar');n.close();};
+  localStorage.setItem('psa_daily_notif',today);
 }
 
 // ═══ RENDER ═══
