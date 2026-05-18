@@ -1549,14 +1549,15 @@ function delAppt(id){
 }
 
 function delClient(id){
-  if(!confirm('Ștergi clientul și toate programările lui?'))return;
+  const c=clients.find(x=>x.id===id);
+  const name=c?c.name:'clientul';
+  const nAppts=appointments.filter(a=>a.clientId===id).length;
+  const msg=nAppts>0
+    ?`Ștergi fișa lui ${name}?\nProgramările existente (${nAppts}) rămân în calendar.`
+    :`Ștergi fișa lui ${name}?`;
+  if(!confirm(msg))return;
   clients=clients.filter(c=>c.id!==id);save(K.CL,clients);
-  const apptIds=appointments.filter(a=>a.clientId===id).map(a=>a.id);
-  appointments=appointments.filter(a=>a.clientId!==id);save(K.AP,appointments);
-  if(sb){
-    sb.from('psa_clients').delete().eq('id',id).then(()=>{});
-    apptIds.forEach(aid=>sb.from('psa_appointments').delete().eq('id',aid).then(()=>{}));
-  }
+  if(sb){sb.from('psa_clients').delete().eq('id',id).then(()=>{});}
   closeModal('clientDetailModal');toast('Client șters');render();
 }
 
