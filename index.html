@@ -542,13 +542,10 @@ body.dark .toast-msg{background:#1a2d5a;}
       <p style="font-size:13px;color:var(--steel-light);margin-bottom:16px;line-height:1.6">Agenda zilei se trimite la adresa celui logat. Folosită și la butonul <strong>📬 Agenda mea</strong> din header.</p>
       <div class="form-row-2">
         <div class="form-row">
-          <label class="form-label">👨‍💼 Email Dragoș (principal)</label>
+          <label class="form-label">👨‍💼 Email Dragoș</label>
           <input type="email" class="form-input" id="emailDragos" placeholder="dragos@exemplu.ro">
         </div>
-        <div class="form-row">
-          <label class="form-label">👨‍💼 Email Dragoș (al doilea)</label>
-          <input type="email" class="form-input" id="emailDragos2" placeholder="office@exemplu.ro">
-        </div>
+
         <div class="form-row">
           <label class="form-label">👩‍💼 Email Mirela</label>
           <input type="email" class="form-input" id="emailMirela" placeholder="mirela@exemplu.ro">
@@ -916,7 +913,6 @@ function renderSettings(){
   if(ds)ds.textContent=`📁 ${clients.length} clienți · 🗓 ${appointments.length} programări salvate local`;
   const emails=getEmails();
   if(document.getElementById('emailDragos'))document.getElementById('emailDragos').value=emails.dragos||'';
-  if(document.getElementById('emailDragos2'))document.getElementById('emailDragos2').value=emails.dragos2||'';
   if(document.getElementById('emailMirela'))document.getElementById('emailMirela').value=emails.mirela||'';
 }
 
@@ -1899,14 +1895,13 @@ Vă rugăm să confirmați sau să ne scrieți dacă doriți reprogramare. Mulț
 
 // ═══ EMAILURI CONFIGURABILE ═══
 function getEmails(){
-  try{return JSON.parse(localStorage.getItem('psa_emails'))||{dragos:'avt.dragos.popescu@gmail.com',dragos2:'',mirela:''};}
-  catch{return{dragos:'avt.dragos.popescu@gmail.com',dragos2:'',mirela:''};}
+  try{return JSON.parse(localStorage.getItem('psa_emails'))||{dragos:'office@popescusiasociatii.ro',mirela:'office@popescusiasociatii.ro'};}
+  catch{return{dragos:'office@popescusiasociatii.ro',mirela:'office@popescusiasociatii.ro'};}
 }
 function saveEmails(){
   const d=document.getElementById('emailDragos').value.trim();
-  const d2=document.getElementById('emailDragos2')?document.getElementById('emailDragos2').value.trim():'';
   const m=document.getElementById('emailMirela').value.trim();
-  localStorage.setItem('psa_emails',JSON.stringify({dragos:d,dragos2:d2,mirela:m}));
+  localStorage.setItem('psa_emails',JSON.stringify({dragos:d,mirela:m}));
   toast('Adrese salvate ✓',0,1);
 }
 function getCurrentUserEmail(){
@@ -1934,7 +1929,7 @@ function sendAgendaEmail(){
     listaHTML+='</table>';
   }
   const emails=getEmails();
-  const recipients=[emails.dragos,emails.dragos2,emails.mirela].filter(Boolean);
+  const recipients=[...new Set([emails.dragos,emails.mirela].filter(Boolean))];
   if(!recipients.length){toast('Nu sunt adrese de email configurate.',1);return;}
   let sent=0,errors=0;
   function tryFallback(){
