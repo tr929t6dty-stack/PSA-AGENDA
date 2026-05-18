@@ -1274,8 +1274,7 @@ function dailySummaryNotif(){
   if(p3.length)lines.push(`În 3 zile: ${p3.length} programare${p3.length>1?'i':''}`);
   if(!lines.length)return;
   const n=new Notification('⚖ PSA Agenda — Programări viitoare',{
-    body:lines.join('
-'),
+    body:lines.join('\n'),
     icon:'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="8" fill="%231a2d5a"/><text y="22" x="6" font-size="20">⚖</text></svg>',
     tag:'psa-daily-summary',
     requireInteraction:false
